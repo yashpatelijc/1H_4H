@@ -73,20 +73,27 @@ def parse_timestamp(df: pd.DataFrame) -> pd.DataFrame:
         if ts.isna().any():
             failed_idx = ts[ts.isna()].index
             total_failed = len(failed_idx)
-            examples = []
-            for i in failed_idx[:50]:
-                examples.append(f"{i}: Date={repr(df.at[i,'Date'])}, Time={repr(df.at[i,'Time'])}")
-            example_text = "\n".join(examples) if examples else "(no examples)"
-            msg = (
-                "Failed to parse Date+Time into timestamps for some rows.\n"
-                f"Total failed rows: {total_failed}.\n\n"
-                "Example problematic rows (index: Date, Time):\n"
-                f"{example_text}\n\n"
-                "Common causes: empty/NULL Date or Time cells, mixed date formats (e.g. DD/MM vs MM/DD),\n"
-                "unexpected separators, non-printable characters, or stray header/footer rows in the CSV.\n\n"
-                "Fix the rows shown above (or re-export CSV with consistent Date+Time format) and re-upload."
-            )
-            raise ValueError(msg)
+            
+            # Check if failures are at the very bottom and less than 5
+            expected_bottom_indices = list(range(len(df) - total_failed, len(df)))
+            if total_failed < 5 and list(failed_idx) == expected_bottom_indices:
+                df = df.drop(index=failed_idx)
+                ts = ts.drop(index=failed_idx)
+            else:
+                examples = []
+                for i in failed_idx[:50]:
+                    examples.append(f"{i}: Date={repr(df.at[i,'Date'])}, Time={repr(df.at[i,'Time'])}")
+                example_text = "\n".join(examples) if examples else "(no examples)"
+                msg = (
+                    "Failed to parse Date+Time into timestamps for some rows.\n"
+                    f"Total failed rows: {total_failed}.\n\n"
+                    "Example problematic rows (index: Date, Time):\n"
+                    f"{example_text}\n\n"
+                    "Common causes: empty/NULL Date or Time cells, mixed date formats (e.g. DD/MM vs MM/DD),\n"
+                    "unexpected separators, non-printable characters, or stray header/footer rows in the CSV.\n\n"
+                    "Fix the rows shown above (or re-export CSV with consistent Date+Time format) and re-upload."
+                )
+                raise ValueError(msg)
 
         df["timestamp"] = ts
 
@@ -98,22 +105,31 @@ def parse_timestamp(df: pd.DataFrame) -> pd.DataFrame:
             raise ValueError("Provide 'Date' + 'Time' OR a single datetime column (e.g., 'timestamp').")
         col = candidates[0]
         ts = pd.to_datetime(df[col], errors="coerce", infer_datetime_format=True)
+        
         if ts.isna().any():
             failed_idx = ts[ts.isna()].index
             total_failed = len(failed_idx)
-            examples = []
-            for i in failed_idx[:50]:
-                examples.append(f"{i}: {col}={repr(df.at[i,col])}")
-            example_text = "\n".join(examples) if examples else "(no examples)"
-            msg = (
-                f"Failed to parse datetimes from column '{col}'.\n"
-                f"Total failed rows: {total_failed}.\n\n"
-                "Example problematic rows (index: value):\n"
-                f"{example_text}\n\n"
-                "Common causes: empty values, mixed formats, or stray header/footer rows in the CSV.\n"
-                "Please fix the examples above and re-upload."
-            )
-            raise ValueError(msg)
+            
+            # Check if failures are at the very bottom and less than 5
+            expected_bottom_indices = list(range(len(df) - total_failed, len(df)))
+            if total_failed < 5 and list(failed_idx) == expected_bottom_indices:
+                df = df.drop(index=failed_idx)
+                ts = ts.drop(index=failed_idx)
+            else:
+                examples = []
+                for i in failed_idx[:50]:
+                    examples.append(f"{i}: {col}={repr(df.at[i,col])}")
+                example_text = "\n".join(examples) if examples else "(no examples)"
+                msg = (
+                    f"Failed to parse datetimes from column '{col}'.\n"
+                    f"Total failed rows: {total_failed}.\n\n"
+                    "Example problematic rows (index: value):\n"
+                    f"{example_text}\n\n"
+                    "Common causes: empty values, mixed formats, or stray header/footer rows in the CSV.\n"
+                    "Please fix the examples above and re-upload."
+                )
+                raise ValueError(msg)
+                
         df["timestamp"] = ts
 
     # Strict sort by timestamp; drop exact duplicate timestamps, keep first to avoid misalignment
